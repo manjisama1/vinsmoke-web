@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Plus, Search, Filter, RefreshCw } from 'lucide-react';
+import { Plus, Search, Filter, RefreshCw, Star, Wifi, WifiOff } from 'lucide-react';
 import { HighlightedText } from '@/utils/textHighlight.jsx';
 import { useData } from '@/contexts/DataContext';
 
@@ -10,11 +11,26 @@ const FAQPage = () => {
   const [openItems, setOpenItems] = useState(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [searchParams, setSearchParams] = useSearchParams();
   
-  // Use global cached data - single API call for entire app!
-  const { faqs, categories, loading, refreshData } = useData();
+  // Use global cached data - permanent FAQs + API FAQs
+  const { faqs, categories, loading, refreshData, permanentFAQs, apiFAQs, error } = useData();
 
-  // Data is now loaded automatically via useAppData hook
+  // Handle URL search parameters
+  useEffect(() => {
+    const urlSearch = searchParams.get('search');
+    if (urlSearch) {
+      setSearchQuery(urlSearch);
+      // Auto-expand first result if searching from URL
+      const firstMatch = faqs.find(faq => 
+        faq.question.toLowerCase().includes(urlSearch.toLowerCase()) ||
+        faq.answer.toLowerCase().includes(urlSearch.toLowerCase())
+      );
+      if (firstMatch) {
+        setOpenItems(new Set([firstMatch.id]));
+      }
+    }
+  }, [searchParams, faqs]);
 
   // Filter and search FAQs
   const filteredFAQs = useMemo(() => {
@@ -53,6 +69,7 @@ const FAQPage = () => {
     setSearchQuery('');
     setSelectedCategory('All');
     setOpenItems(new Set());
+    setSearchParams({}); // Clear URL parameters
   };
 
   return (
@@ -62,6 +79,36 @@ const FAQPage = () => {
         <p className="text-lg text-muted-foreground mb-6">
           Find answers to common questions about Vinsmoke bot
         </p>
+
+        {/* FAQ Status Info */}
+        <div className="flex items-center gap-4 mb-6 p-4 bg-muted/50 rounded-lg">
+          <div className="flex items-center gap-2">
+            <Star className="w-4 h-4 text-green-600" />
+            <span className="text-sm font-medium text-green-700">
+              {permanentFAQs.length} Core FAQs
+            </span>
+            <span className="text-xs text-muted-foreground">(Always available)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {error ? (
+              <>
+                <WifiOff className="w-4 h-4 text-orange-600" />
+                <span className="text-sm font-medium text-orange-700">
+                  0 Additional FAQs
+                </span>
+                <span className="text-xs text-muted-foreground">(API unavailable)</span>
+              </>
+            ) : (
+              <>
+                <Wifi className="w-4 h-4 text-blue-600" />
+                <span className="text-sm font-medium text-blue-700">
+                  {apiFAQs.length} Additional FAQs
+                </span>
+                <span className="text-xs text-muted-foreground">(From server)</span>
+              </>
+            )}
+          </div>
+        </div>
 
         {/* Search and Filter Section */}
         <div className="space-y-4">
@@ -150,6 +197,12 @@ const FAQPage = () => {
                         <span className="text-xs px-2 py-1 bg-primary/10 text-primary rounded-full font-medium">
                           {item.category}
                         </span>
+                        {item.isHardcoded && (
+                          <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full font-medium flex items-center gap-1">
+                            <Star className="w-3 h-3" />
+                            Core
+                          </span>
+                        )}
                       </div>
                       <span>{item.question}</span>
                     </div>

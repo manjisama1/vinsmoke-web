@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { MessageSquare, Plug, HelpCircle, HeadphonesIcon, Home, User, Github, LogOut } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import FAQSearch from '@/components/FAQSearch';
 
 const Navigation = () => {
   const { user, showLogin, setShowLogin, logout, startGitHubLogin } = useAuth();
@@ -85,9 +86,15 @@ const Navigation = () => {
                 </Button>
               );
             })}
+          </div>
+
+          {/* Right Side - FAQ Search + Profile */}
+          <div className="hidden md:flex items-center space-x-4">
+            {/* FAQ Search */}
+            <FAQSearch className="w-64" />
 
             {/* Profile Button */}
-            <div className="ml-4">
+            <div>
               {user ? (
                 <Button
                   variant="ghost"

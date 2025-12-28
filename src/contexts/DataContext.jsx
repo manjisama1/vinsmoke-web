@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { API_ENDPOINTS } from '@/config/api';
+import { PERMANENT_FAQS, getPermanentCategories } from '@/data/permanentFAQs';
 
 const DataContext = createContext();
 
@@ -12,11 +13,16 @@ export const useData = () => {
 };
 
 export const DataProvider = ({ children }) => {
-  const [data, setData] = useState(null);
+  const [apiData, setApiData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const fetchingRef = useRef(false); // Prevent duplicate requests
 
-  const fetchAllData = async () => {
+  const fetchApiData = async () => {
+    // Prevent duplicate requests
+    if (fetchingRef.current) return;
+    
+    fetchingRef.current = true;
     setLoading(true);
     setError(null);
 
@@ -25,32 +31,49 @@ export const DataProvider = ({ children }) => {
       const result = await response.json();
 
       if (result.success) {
-        setData(result);
+        setApiData(result);
       } else {
         throw new Error(result.error || 'Failed to fetch data');
       }
     } catch (err) {
       setError(err.message);
+      // Don't fail completely - we still have permanent FAQs
+      setApiData({ faqs: [], plugins: [], categories: [] });
     } finally {
       setLoading(false);
+      fetchingRef.current = false;
     }
   };
 
   useEffect(() => {
-    fetchAllData();
+    fetchApiData();
   }, []);
 
   const refreshData = () => {
-    fetchAllData();
+    fetchApiData();
   };
 
+  // Combine permanent FAQs with API FAQs
+  const allFAQs = [
+    ...PERMANENT_FAQS,
+    ...(apiData?.faqs || []).filter(faq => !faq.isPermanent) // Only add non-permanent FAQs from API
+  ];
+
+  // Combine categories
+  const permanentCategories = getPermanentCategories();
+  const apiCategories = apiData?.categories || [];
+  const allCategories = ['All', ...new Set([...permanentCategories, ...apiCategories])].sort();
+
   const value = {
-    faqs: data?.faqs || [],
-    plugins: data?.plugins || [],
-    categories: data?.categories || ['All'],
+    faqs: allFAQs,
+    plugins: apiData?.plugins || [],
+    categories: allCategories,
     loading,
     error,
-    refreshData
+    refreshData,
+    // Separate access to permanent and API data
+    permanentFAQs: PERMANENT_FAQS,
+    apiFAQs: apiData?.faqs || []
   };
 
   return (

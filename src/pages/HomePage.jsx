@@ -2,12 +2,20 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { MessageSquare, Plug, HelpCircle, HeadphonesIcon, Shield } from 'lucide-react';
+import { MessageSquare, Plug, HelpCircle, HeadphonesIcon, Shield, ArrowRight } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useData } from '@/contexts/DataContext';
 import { isAdmin } from '@/config/admin';
+import ServerStatus from '@/components/ServerStatus';
 
 const HomePage = () => {
   const { user } = useAuth();
+  const { faqs } = useData();
+
+  // Get top 3 most important FAQs for homepage preview
+  const featuredFAQs = faqs
+    .filter(faq => ['Getting Started', 'Sessions', 'Security'].includes(faq.category))
+    .slice(0, 3);
 
   const accessAdminPanel = () => {
     if (user && isAdmin(user)) {
@@ -51,6 +59,11 @@ const HomePage = () => {
     <div className="min-h-screen">
       {/* Hero Section */}
       <section className="container mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
+        {/* Server Status Indicator */}
+        <div className="max-w-md mx-auto mb-8">
+          <ServerStatus showDetails={true} />
+        </div>
+
         <div className="text-center max-w-4xl mx-auto mb-16">
           <div className="inline-flex items-center justify-center p-2 bg-primary/10 rounded-full mb-6">
             <span className="text-sm font-medium text-primary px-3 py-1">Vinsmoke Bot Manager</span>
@@ -106,6 +119,56 @@ const HomePage = () => {
               </Button>
             </div>
           </div>
+        )}
+
+        {/* Quick FAQ Section */}
+        {featuredFAQs.length > 0 && (
+          <section className="mt-20">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl font-bold text-foreground mb-4">Quick Help</h2>
+              <p className="text-lg text-muted-foreground">
+                Get started quickly with these common questions
+              </p>
+            </div>
+            
+            <div className="grid md:grid-cols-3 gap-6 max-w-6xl mx-auto">
+              {featuredFAQs.map((faq) => (
+                <Card key={faq.id} className="border-border hover:shadow-md transition-all duration-300">
+                  <CardHeader>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs px-2 py-1 bg-primary/10 text-primary rounded-full font-medium">
+                        {faq.category}
+                      </span>
+                    </div>
+                    <CardTitle className="text-lg leading-tight">
+                      {faq.question}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground text-sm leading-relaxed mb-4 line-clamp-3">
+                      {faq.answer.replace(/\n/g, ' ').substring(0, 120)}...
+                    </p>
+                    <Link 
+                      to="/faq" 
+                      className="inline-flex items-center text-primary hover:text-primary-hover text-sm font-medium"
+                    >
+                      Read more
+                      <ArrowRight className="w-3 h-3 ml-1" />
+                    </Link>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+            
+            <div className="text-center mt-8">
+              <Link to="/faq">
+                <Button variant="outline" size="lg">
+                  <HelpCircle className="w-4 h-4 mr-2" />
+                  View All FAQs
+                </Button>
+              </Link>
+            </div>
+          </section>
         )}
       </section>
     </div>

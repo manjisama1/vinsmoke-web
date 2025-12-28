@@ -89,6 +89,13 @@ const FAQManagement = ({ onStatsUpdate }) => {
   };
 
   const handleDeleteFAQ = (id) => {
+    const faq = faqs.find(f => f.id === id);
+    
+    if (faq?.isPermanent) {
+      toast.error('Cannot delete permanent FAQ. This FAQ is protected and cannot be removed.');
+      return;
+    }
+
     if (!confirm('Are you sure you want to delete this FAQ? Click "Save Changes" to apply the deletion.')) return;
 
     deleteFAQ(id);
@@ -158,6 +165,22 @@ const FAQManagement = ({ onStatsUpdate }) => {
         </div>
       </div>
 
+      {/* Info Card */}
+      <Card className="bg-blue-50 border-blue-200">
+        <CardContent className="p-4">
+          <div className="flex items-start gap-3">
+            <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+            <div className="text-sm">
+              <p className="font-medium text-blue-900 mb-1">FAQ Management</p>
+              <p className="text-blue-700">
+                <span className="font-medium">Permanent FAQs</span> (marked with green badge) are protected system FAQs that cannot be deleted. 
+                You can edit their content but they will always remain in the system to ensure essential information is available.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Highlight Colors Guide */}
       <Card className="bg-blue-50 border-blue-200">
         <CardHeader className="pb-3">
@@ -202,10 +225,15 @@ const FAQManagement = ({ onStatsUpdate }) => {
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
+                  <div className="flex items-center gap-2 mb-2">
                       <Badge className="bg-primary/10 text-primary">
                         {faq.category}
                       </Badge>
+                      {faq.isPermanent && (
+                        <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200">
+                          Permanent
+                        </Badge>
+                      )}
                       <span className="text-xs text-muted-foreground">ID: {faq.id}</span>
                       {faq.updatedAt && (
                         <span className="text-xs text-muted-foreground">
@@ -237,7 +265,12 @@ const FAQManagement = ({ onStatsUpdate }) => {
                       variant="outline"
                       size="sm"
                       onClick={() => handleDeleteFAQ(faq.id)}
-                      className="text-red-600 hover:text-red-700"
+                      disabled={faq.isPermanent}
+                      className={faq.isPermanent 
+                        ? "text-gray-400 cursor-not-allowed" 
+                        : "text-red-600 hover:text-red-700"
+                      }
+                      title={faq.isPermanent ? "Cannot delete permanent FAQ" : "Delete FAQ"}
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
@@ -468,7 +501,13 @@ const FAQManagement = ({ onStatsUpdate }) => {
               <p className="font-medium">{filteredFAQs.length}</p>
               <p className="text-muted-foreground">Total FAQs</p>
             </div>
-            {categories.slice(0, 3).map(category => (
+            <div className="text-center">
+              <p className="font-medium">
+                {filteredFAQs.filter(f => f.isPermanent).length}
+              </p>
+              <p className="text-muted-foreground">Permanent</p>
+            </div>
+            {categories.slice(0, 2).map(category => (
               <div key={category} className="text-center">
                 <p className="font-medium">
                   {filteredFAQs.filter(f => f.category === category).length}
