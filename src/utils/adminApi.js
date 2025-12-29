@@ -16,11 +16,8 @@ const getAuthHeaders = () => {
       throw new Error('Admin privileges required');
     }
 
-    const token = btoa(JSON.stringify({
-      id: userData.id,
-      login: userData.login,
-      timestamp: Date.now()
-    }));
+    // Send the full user data as token (same format as GitHub OAuth)
+    const token = btoa(JSON.stringify(userData));
     
     return {
       'Content-Type': 'application/json',

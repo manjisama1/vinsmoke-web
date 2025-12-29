@@ -87,6 +87,7 @@ const AdminGuard = ({ children }) => {
               <p><strong>Current User:</strong> {user.name || user.login}</p>
               <p><strong>Required:</strong> Admin privileges</p>
             </div>
+            
             <Button
               onClick={() => window.location.href = '/'}
               variant="outline"

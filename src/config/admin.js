@@ -14,7 +14,6 @@ export const isAdmin = (user) => {
   if (user.id && ADMIN_CONFIG.adminUserIds.length > 0) {
     const isAdminById = ADMIN_CONFIG.adminUserIds.includes(user.id.toString());
     if (isAdminById) {
-      console.log(`Admin access by ID: ${user.id} (${user.login})`);
       return true;
     }
   }
@@ -22,13 +21,10 @@ export const isAdmin = (user) => {
   if (user.login && ADMIN_CONFIG.adminUsernames.length > 0) {
     const isAdminByUsername = ADMIN_CONFIG.adminUsernames.includes(user.login);
     if (isAdminByUsername) {
-      console.log(`Admin access by username: ${user.login} (${user.id})`);
-      console.log(`Update config to use ID: ${user.id}`);
       return true;
     }
   }
 
-  console.log(`Access denied: ${user.login} (${user.id})`);
   return false;
 };
 

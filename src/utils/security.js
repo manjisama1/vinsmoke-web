@@ -188,14 +188,8 @@ export const cspHelpers = {
 export const secureAdminCheck = (user) => {
   if (!user || !validateUserData(user)) return false;
   
-  if (!isAdmin(user)) return false;
-  
-  const storedUser = secureStorage.get('user');
-  if (!storedUser || storedUser.id !== user.id || storedUser.login !== user.login) {
-    return false;
-  }
-  
-  return true;
+  // Use the same admin check as the main config
+  return isAdmin(user);
 };
 
 export const sessionSecurity = {

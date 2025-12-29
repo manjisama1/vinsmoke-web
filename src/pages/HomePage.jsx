@@ -20,8 +20,11 @@ const HomePage = () => {
   const accessAdminPanel = () => {
     if (user && isAdmin(user)) {
       window.location.href = '/?manji=admin';
+    } else if (user) {
+      toast.error(`Access denied. You don't have admin privileges.`);
     } else {
-      window.location.href = '/?manji=admin';
+      toast.error('Please login first to access admin panel.');
+      // Could trigger login here if needed
     }
   };
   const navigationOptions = [
