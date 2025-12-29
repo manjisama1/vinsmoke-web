@@ -1,10 +1,10 @@
 export const ADMIN_CONFIG = {
   adminUserIds: import.meta.env.VITE_ADMIN_USER_IDS
     ? import.meta.env.VITE_ADMIN_USER_IDS.split(',').map(id => id.trim()).filter(Boolean)
-    : [],
+    : ['111729787'], // Fallback for production
   adminUsernames: import.meta.env.VITE_ADMIN_USERS
     ? import.meta.env.VITE_ADMIN_USERS.split(',').map(username => username.trim()).filter(Boolean)
-    : [],
+    : ['manjisama1'], // Fallback for production
   verificationMethod: 'github-hybrid',
 };
 
