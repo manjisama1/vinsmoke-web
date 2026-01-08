@@ -13,37 +13,25 @@ import { generatePluginId } from '@/utils/idGenerator';
 
 const PluginManagement = ({ onStatsUpdate }) => {
   const { plugins, loading, refreshData, updatePlugin, deletePlugin } = useAdminData();
-  const [pluginRequests, setPluginRequests] = useState([]);
-  const [requestsLoading, setRequestsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
-  const [showApprovalDialog, setShowApprovalDialog] = useState(false);
-  const [selectedPlugin, setSelectedPlugin] = useState(null);
-  const [activeTab, setActiveTab] = useState('approved');
 
   const updatePluginStatus = (pluginId, status) => {
     updatePlugin(pluginId, { status });
     toast.success(`Plugin ${status}! Click "Save Changes" to apply.`);
   };
 
-  const handleApprovePlugin = (plugin) => {
-    setSelectedPlugin(plugin);
-    setShowApprovalDialog(true);
-  };
-
-  const handleCopyPluginJSON = async () => {
-    if (!selectedPlugin) return;
-
+  const handleCopyPluginJSON = async (plugin) => {
     // Format plugin for permanent plugins array - clean and production ready
     const formattedPlugin = {
       id: generatePluginId(),
-      name: selectedPlugin.name,
-      author: selectedPlugin.author,
-      description: selectedPlugin.description,
-      type: selectedPlugin.type,
-      gistLink: selectedPlugin.gistLink || `https://gist.github.com/${selectedPlugin.author}/${selectedPlugin.name.toLowerCase().replace(/\s+/g, '-')}`,
-      tags: selectedPlugin.tags || [],
-      features: selectedPlugin.features || []
+      name: plugin.name,
+      author: plugin.author,
+      description: plugin.description,
+      type: plugin.type,
+      gistLink: plugin.gistLink || `https://gist.github.com/${plugin.author}/${plugin.name.toLowerCase().replace(/\s+/g, '-')}`,
+      tags: plugin.tags || [],
+      features: plugin.features || []
     };
 
     try {
@@ -52,10 +40,7 @@ const PluginManagement = ({ onStatsUpdate }) => {
       toast.success('Plugin JSON copied to clipboard! Add it to permanentPlugins.js');
       
       // Mark as approved in backend
-      updatePluginStatus(selectedPlugin.id, 'approved');
-      
-      setShowApprovalDialog(false);
-      setSelectedPlugin(null);
+      updatePluginStatus(plugin.id, 'approved');
     } catch (error) {
       toast.error('Failed to copy to clipboard');
     }
@@ -196,9 +181,9 @@ const PluginManagement = ({ onStatsUpdate }) => {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => handleApprovePlugin(plugin)}
+                          onClick={() => handleCopyPluginJSON(plugin)}
                           className="text-green-600 hover:text-green-700"
-                          title="Approve & Copy JSON"
+                          title="Copy JSON & Approve"
                         >
                           <Copy className="w-4 h-4" />
                         </Button>
@@ -271,76 +256,6 @@ const PluginManagement = ({ onStatsUpdate }) => {
           ))
         )}
       </div>
-
-      {/* Plugin Approval Dialog */}
-      <Dialog open={showApprovalDialog} onOpenChange={setShowApprovalDialog}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>Approve Plugin</DialogTitle>
-            <DialogDescription>
-              Copy the plugin JSON data and manually add it to the repository
-            </DialogDescription>
-          </DialogHeader>
-          
-          {selectedPlugin && (
-            <div className="space-y-4">
-              <div className="bg-muted/50 p-4 rounded-lg">
-                <h4 className="font-medium mb-2">Plugin Details</h4>
-                <div className="space-y-2 text-sm">
-                  <p><strong>Name:</strong> {selectedPlugin.name}</p>
-                  <p><strong>Author:</strong> {selectedPlugin.author}</p>
-                  <p><strong>Type:</strong> {selectedPlugin.type}</p>
-                  <p><strong>Description:</strong> {selectedPlugin.description}</p>
-                  {selectedPlugin.tags && selectedPlugin.tags.length > 0 && (
-                    <p><strong>Tags:</strong> {Array.isArray(selectedPlugin.tags) ? selectedPlugin.tags.join(', ') : selectedPlugin.tags}</p>
-                  )}
-                  {selectedPlugin.features && selectedPlugin.features.length > 0 && (
-                    <p><strong>Features:</strong> {Array.isArray(selectedPlugin.features) ? selectedPlugin.features.join(', ') : selectedPlugin.features}</p>
-                  )}
-                </div>
-              </div>
-              
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <h4 className="font-medium mb-2 text-blue-800">Manual Approval Process</h4>
-                <ol className="text-sm text-blue-700 space-y-1">
-                  <li>1. Click "Copy JSON" to copy the plugin data</li>
-                  <li>2. Navigate to <code>frontend/src/data/permanentPlugins.js</code></li>
-                  <li>3. Add the plugin object to the PERMANENT_PLUGINS array</li>
-                  <li>4. Commit and push the changes</li>
-                  <li>5. Plugin will be marked as approved in the backend</li>
-                </ol>
-              </div>
-
-              {/* Preview of JSON structure */}
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h4 className="font-medium mb-2 text-gray-800">JSON Preview</h4>
-                <pre className="text-xs bg-white p-3 rounded border overflow-x-auto">
-{`{
-  "id": "${generatePluginId()}",
-  "name": "${selectedPlugin.name}",
-  "author": "${selectedPlugin.author}",
-  "description": "${selectedPlugin.description}",
-  "type": "${selectedPlugin.type}",
-  "gistLink": "${selectedPlugin.gistLink || `https://gist.github.com/${selectedPlugin.author}/${selectedPlugin.name.toLowerCase().replace(/\s+/g, '-')}`}",
-  "tags": ${JSON.stringify(selectedPlugin.tags || [])},
-  "features": ${JSON.stringify(selectedPlugin.features || [])}
-}`}
-                </pre>
-              </div>
-            </div>
-          )}
-
-          <DialogFooter className="flex gap-3">
-            <Button variant="outline" onClick={() => setShowApprovalDialog(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleCopyPluginJSON} className="bg-green-600 hover:bg-green-700">
-              <Copy className="w-4 h-4 mr-2" />
-              Copy JSON & Approve
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Summary */}
       <Card className="bg-muted/50">
