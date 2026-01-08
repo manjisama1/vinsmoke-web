@@ -48,10 +48,15 @@ const PluginUploader = ({ onClose }) => {
     if (!formData.gistLink.trim()) {
       newErrors.gistLink = 'GitHub Gist URL is required';
     } else {
-      // Validate gist URL format
-      const gistUrlPattern = /^https:\/\/gist\.github\.com\/[^\/]+\/[a-f0-9]+$/;
-      if (!gistUrlPattern.test(formData.gistLink.trim())) {
-        newErrors.gistLink = 'Please provide a valid GitHub Gist URL (e.g., https://gist.github.com/username/abc123)';
+      // Validate gist URL format - more flexible validation
+      const gistUrlPattern = /^https:\/\/gist\.github\.com\/[^\/]+\/[a-f0-9]{32}$/;
+      const rawGistPattern = /^https:\/\/gist\.githubusercontent\.com\/[^\/]+\/[a-f0-9]{32}\/raw/;
+      const simpleGistPattern = /^https:\/\/gist\.github\.com\/[^\/]+\/[a-f0-9]+/;
+      
+      if (!gistUrlPattern.test(formData.gistLink.trim()) && 
+          !rawGistPattern.test(formData.gistLink.trim()) && 
+          !simpleGistPattern.test(formData.gistLink.trim())) {
+        newErrors.gistLink = 'Please provide a valid GitHub Gist URL (e.g., https://gist.github.com/username/abc123...)';
       }
     }
     

@@ -65,15 +65,6 @@ const PluginsPage = () => {
   // Debounced search term for performance
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
-  // Form state for adding plugins
-  const [newPlugin, setNewPlugin] = useState({
-    name: '',
-    description: '',
-    type: '',
-    tags: '',
-    features: ''
-  });
-
   const typeIcons = {
     audio: Music,
     video: Video,
@@ -163,51 +154,6 @@ const PluginsPage = () => {
     combined = [...combined, ...plugins];
     
     setAllPlugins(combined);
-  };
-
-  const handleSubmitPlugin = async (e) => {
-    e.preventDefault();
-
-    if (!newPlugin.name || !newPlugin.description || !newPlugin.type) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
-
-    try {
-      const pluginData = {
-        name: newPlugin.name.trim(),
-        author: user?.name || user?.login || 'Anonymous',
-        description: newPlugin.description.trim(),
-        type: newPlugin.type,
-        tags: newPlugin.tags ? newPlugin.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
-        features: newPlugin.features ? newPlugin.features.split(',').map(f => f.trim()).filter(Boolean) : [],
-        submittedBy: user?.id || user?.login || 'anonymous',
-        submittedAt: new Date().toISOString()
-      };
-
-      const response = await fetch(API_ENDPOINTS.plugins, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(pluginData),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        // Refresh data to get updated plugins list
-        await refreshData();
-        setNewPlugin({ name: '', description: '', type: '', tags: '', features: '' });
-        setShowAddDialog(false);
-        toast.success('Plugin submitted successfully! It will appear in the admin panel for approval.');
-      } else {
-        throw new Error(data.error || 'Failed to submit plugin');
-      }
-    } catch (error) {
-      console.error('Submit Plugin Error:', error);
-      toast.error(error.message || 'Failed to submit plugin');
-    }
   };
 
   const handleLikePlugin = (pluginId) => {
@@ -508,109 +454,21 @@ const PluginsPage = () => {
         )}
       </div>
 
-      {/* Plugin Submission Dialog */}
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Submit Plugin</DialogTitle>
-            <DialogDescription>
-              Submit your plugin for admin review and approval. Your GitHub username will be automatically detected.
-            </DialogDescription>
-          </DialogHeader>
+      {/* Plugin Submission Sheet */}
+      <Sheet open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <SheetContent className="w-full sm:max-w-[600px] overflow-y-auto">
+          <SheetHeader className="pb-4">
+            <SheetTitle>Submit Plugin for Approval</SheetTitle>
+            <SheetDescription>
+              Submit your plugin to the community. It will be reviewed by admins before being published.
+            </SheetDescription>
+          </SheetHeader>
           
-          <form onSubmit={handleSubmitPlugin} className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Plugin Name *</Label>
-              <Input
-                id="name"
-                placeholder="My Awesome Plugin"
-                value={newPlugin.name}
-                onChange={(e) => setNewPlugin({ ...newPlugin, name: e.target.value })}
-                required
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="type">Category *</Label>
-              <Select
-                value={newPlugin.type}
-                onValueChange={(value) => setNewPlugin({ ...newPlugin, type: value })}
-              >
-                <SelectTrigger id="type">
-                  <SelectValue placeholder="Select plugin category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {PLUGIN_CATEGORIES.filter(cat => cat.value !== 'all').map(category => (
-                    <SelectItem key={category.value} value={category.value}>
-                      {category.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="description">Description *</Label>
-              <Textarea
-                id="description"
-                placeholder="Describe what your plugin does and its key features..."
-                value={newPlugin.description}
-                onChange={(e) => setNewPlugin({ ...newPlugin, description: e.target.value })}
-                rows={3}
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="tags">Tags (optional)</Label>
-              <Input
-                id="tags"
-                placeholder="tag1, tag2, tag3"
-                value={newPlugin.tags}
-                onChange={(e) => setNewPlugin({ ...newPlugin, tags: e.target.value })}
-              />
-              <p className="text-xs text-muted-foreground">
-                Comma-separated tags to help users find your plugin
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="features">Features (optional)</Label>
-              <Textarea
-                id="features"
-                placeholder="Feature 1, Feature 2, Feature 3"
-                value={newPlugin.features}
-                onChange={(e) => setNewPlugin({ ...newPlugin, features: e.target.value })}
-                rows={2}
-              />
-              <p className="text-xs text-muted-foreground">
-                Comma-separated list of key features
-              </p>
-            </div>
-
-            {/* User Info Display */}
-            {user && (
-              <div className="bg-muted/50 p-3 rounded-lg">
-                <p className="text-sm text-muted-foreground">
-                  <strong>Author:</strong> {user.name || user.login}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  This will be automatically set as the plugin author
-                </p>
-              </div>
-            )}
-
-            <DialogFooter className="flex gap-3">
-              <Button type="button" variant="outline" onClick={() => setShowAddDialog(false)} className="flex-1">
-                Cancel
-              </Button>
-              <Button type="submit" className="flex-1 bg-primary hover:bg-primary-hover">
-                Submit Plugin
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+          <div className="pr-2"> {/* Add padding for scrollbar */}
+            <PluginUploader onClose={() => setShowAddDialog(false)} />
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Login Dialog */}
       <Dialog open={showLogin} onOpenChange={setShowLogin}>
