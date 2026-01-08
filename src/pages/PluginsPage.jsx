@@ -48,7 +48,7 @@ const useDebounce = (value, delay) => {
 };
 
 const PluginsPage = () => {
-  const { user, requireAuth, showLogin, setShowLogin, loading: authLoading } = useAuth();
+  const { user, requireAuth, showLogin, setShowLogin, startGitHubLogin, loading: authLoading } = useAuth();
   const { plugins, loading, refreshData } = useData();
   const { toggleLike, getPendingLikeStatus } = useLikes();
   
@@ -632,7 +632,7 @@ const PluginsPage = () => {
               </p>
             </div>
             <Button
-              onClick={requireAuth}
+              onClick={startGitHubLogin}
               className="w-full bg-[#24292e] hover:bg-[#1a1e22] text-white"
             >
               <Github className="w-4 h-4 mr-2" />

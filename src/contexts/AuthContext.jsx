@@ -96,10 +96,13 @@ export const AuthProvider = ({ children }) => {
 
   const requireAuth = (callback) => {
     if (user && !loading) {
-      callback();
+      if (callback) callback();
+      return true;
     } else if (!loading) {
       setShowLogin(true);
+      return false;
     }
+    return false;
   };
 
   const startGitHubLogin = () => {

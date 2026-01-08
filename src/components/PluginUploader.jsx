@@ -67,8 +67,7 @@ const PluginUploader = ({ onClose }) => {
     e.preventDefault();
     
     // Check authentication first
-    if (!user) {
-      requireAuth();
+    if (!requireAuth()) {
       return;
     }
 
