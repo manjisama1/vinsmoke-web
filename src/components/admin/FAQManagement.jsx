@@ -5,18 +5,16 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Download, Trash2, Search, RefreshCw, Plus, Edit, Save, Eye, Palette } from 'lucide-react';
+import { Search, Plus, Edit, Save, Eye, Palette, Copy, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import { adminApi } from '@/utils/adminApi';
-import { useAdminData } from '@/contexts/AdminDataContext';
+import { PERMANENT_FAQS, getPermanentCategories } from '@/data/permanentFAQs';
 import { HighlightedText, getHighlightColors } from '@/utils/textHighlight.jsx';
 
 const FAQManagement = ({ onStatsUpdate }) => {
-  const { faqs, loading, refreshData, addFAQ, updateFAQ, deleteFAQ } = useAdminData();
+  // Use permanent FAQs for preview
+  const faqs = PERMANENT_FAQS;
   const [searchQuery, setSearchQuery] = useState('');
-  const [editingId, setEditingId] = useState(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
-  const [showEditDialog, setShowEditDialog] = useState(false);
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [previewFAQ, setPreviewFAQ] = useState(null);
   const [formData, setFormData] = useState({
@@ -40,89 +38,52 @@ const FAQManagement = ({ onStatsUpdate }) => {
       category: '',
       tags: ''
     });
-    setEditingId(null);
   };
 
-  const handleAddFAQ = () => {
+  const handlePreviewFAQ = () => {
     if (!formData.question || !formData.answer || !formData.category) {
-      toast.error('Please fill in all required fields');
+      toast.error('Please fill in all required fields to preview');
       return;
     }
 
-    const processedData = {
-      ...formData,
-      tags: formData.tags ? formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag) : []
+    const previewData = {
+      id: `preview-${Date.now()}`,
+      question: formData.question,
+      answer: formData.answer,
+      category: formData.category,
+      tags: formData.tags ? formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag) : [],
+      isPermanent: false,
+      isHardcoded: false
     };
-    
-    addFAQ(processedData);
-    toast.success('FAQ added! Click "Save Changes" to apply.');
-    clearForm();
-    setShowAddDialog(false);
-  };
 
-  const handleEditFAQ = (faq) => {
-    setFormData({
-      question: faq.question,
-      answer: faq.answer,
-      category: faq.category,
-      tags: Array.isArray(faq.tags) ? faq.tags.join(', ') : (faq.tags || '')
-    });
-    setEditingId(faq.id);
-    setShowEditDialog(true);
-  };
-
-  const handleUpdateFAQ = () => {
-    if (!formData.question || !formData.answer || !formData.category) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
-
-    const processedData = {
-      ...formData,
-      tags: formData.tags ? formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag) : []
-    };
-    
-    updateFAQ(editingId, processedData);
-    toast.success('FAQ updated! Click "Save Changes" to apply.');
-    clearForm();
-    setShowEditDialog(false);
-  };
-
-  const handleDeleteFAQ = (id) => {
-    const faq = faqs.find(f => f.id === id);
-    
-    if (faq?.isPermanent) {
-      toast.error('Cannot delete permanent FAQ. This FAQ is protected and cannot be removed.');
-      return;
-    }
-
-    if (!confirm('Are you sure you want to delete this FAQ? Click "Save Changes" to apply the deletion.')) return;
-
-    deleteFAQ(id);
-    toast.success('FAQ marked for deletion! Click "Save Changes" to apply.');
-  };
-
-  const handlePreviewFAQ = (faq) => {
-    setPreviewFAQ(faq);
+    setPreviewFAQ(previewData);
     setShowPreviewDialog(true);
   };
 
-  const downloadFAQData = () => {
+  const handleCopyFAQJSON = async () => {
+    if (!previewFAQ) return;
+
+    const faqData = {
+      id: `perm-${Date.now()}`,
+      question: previewFAQ.question,
+      answer: previewFAQ.answer,
+      category: previewFAQ.category,
+      tags: previewFAQ.tags,
+      isPermanent: true,
+      isHardcoded: true
+    };
+
     try {
-      const dataStr = JSON.stringify(faqs, null, 2);
-      const blob = new Blob([dataStr], { type: 'application/json' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `faqs-${new Date().toISOString().split('T')[0]}.json`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-      toast.success('FAQ data downloaded');
+      const jsonString = JSON.stringify(faqData, null, 2);
+      await navigator.clipboard.writeText(jsonString);
+      toast.success('FAQ JSON copied to clipboard! Add it to permanentFAQs.js');
+      
+      // Clear form and close dialogs
+      clearForm();
+      setShowPreviewDialog(false);
+      setShowAddDialog(false);
     } catch (error) {
-      console.error('Error downloading FAQ data:', error);
-      toast.error('Error downloading FAQ data.');
+      toast.error('Failed to copy to clipboard');
     }
   };
 
@@ -133,7 +94,7 @@ const FAQManagement = ({ onStatsUpdate }) => {
     faq.tags?.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  const categories = [...new Set(faqs.map(f => f.category))].sort();
+  const categories = getPermanentCategories();
 
   return (
     <div className="space-y-6">
@@ -142,15 +103,7 @@ const FAQManagement = ({ onStatsUpdate }) => {
         <div className="flex gap-2">
           <Button onClick={() => { clearForm(); setShowAddDialog(true); }}>
             <Plus className="w-4 h-4 mr-2" />
-            Add FAQ
-          </Button>
-          <Button variant="outline" onClick={refreshData} disabled={loading}>
-            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-          <Button variant="outline" onClick={downloadFAQData}>
-            <Download className="w-4 h-4 mr-2" />
-            Download All
+            Create FAQ
           </Button>
         </div>
         
@@ -171,10 +124,10 @@ const FAQManagement = ({ onStatsUpdate }) => {
           <div className="flex items-start gap-3">
             <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
             <div className="text-sm">
-              <p className="font-medium text-blue-900 mb-1">FAQ Management</p>
+              <p className="font-medium text-blue-900 mb-1">FAQ Management - Preview Mode</p>
               <p className="text-blue-700">
-                <span className="font-medium">Permanent FAQs</span> (marked with green badge) are protected system FAQs that cannot be deleted. 
-                You can edit their content but they will always remain in the system to ensure essential information is available.
+                Create and preview FAQs here. When you're satisfied with the preview, click "Copy JSON" to get the formatted data. 
+                Then manually add it to <code>frontend/src/data/permanentFAQs.js</code> to make it permanent.
               </p>
             </div>
           </div>
@@ -203,14 +156,7 @@ const FAQManagement = ({ onStatsUpdate }) => {
 
       {/* FAQs List */}
       <div className="grid gap-4">
-        {loading ? (
-          <Card>
-            <CardContent className="p-6 text-center">
-              <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-muted-foreground" />
-              <p className="text-muted-foreground">Loading FAQs...</p>
-            </CardContent>
-          </Card>
-        ) : filteredFAQs.length === 0 ? (
+        {filteredFAQs.length === 0 ? (
           <Card>
             <CardContent className="p-6 text-center">
               <Search className="w-8 h-8 mx-auto mb-4 text-muted-foreground" />
@@ -225,21 +171,14 @@ const FAQManagement = ({ onStatsUpdate }) => {
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
+                    <div className="flex items-center gap-2 mb-2">
                       <Badge className="bg-primary/10 text-primary">
                         {faq.category}
                       </Badge>
-                      {faq.isPermanent && (
-                        <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200">
-                          Permanent
-                        </Badge>
-                      )}
+                      <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200">
+                        Permanent
+                      </Badge>
                       <span className="text-xs text-muted-foreground">ID: {faq.id}</span>
-                      {faq.updatedAt && (
-                        <span className="text-xs text-muted-foreground">
-                          Updated: {new Date(faq.updatedAt).toLocaleDateString()}
-                        </span>
-                      )}
                     </div>
                     <CardTitle className="text-lg">{faq.question}</CardTitle>
                   </div>
@@ -248,31 +187,13 @@ const FAQManagement = ({ onStatsUpdate }) => {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handlePreviewFAQ(faq)}
+                      onClick={() => {
+                        setPreviewFAQ(faq);
+                        setShowPreviewDialog(true);
+                      }}
                       className="text-blue-600 hover:text-blue-700"
                     >
                       <Eye className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleEditFAQ(faq)}
-                      className="text-green-600 hover:text-green-700"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDeleteFAQ(faq.id)}
-                      disabled={faq.isPermanent}
-                      className={faq.isPermanent 
-                        ? "text-gray-400 cursor-not-allowed" 
-                        : "text-red-600 hover:text-red-700"
-                      }
-                      title={faq.isPermanent ? "Cannot delete permanent FAQ" : "Delete FAQ"}
-                    >
-                      <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
                 </div>
@@ -309,9 +230,9 @@ const FAQManagement = ({ onStatsUpdate }) => {
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
-            <DialogTitle>Add New FAQ</DialogTitle>
+            <DialogTitle>Create New FAQ</DialogTitle>
             <DialogDescription>
-              Create a new FAQ entry. Use color highlighting syntax like red`text` for emphasis.
+              Create a new FAQ entry. Use color highlighting syntax like red`text` for emphasis. Preview it first, then copy the JSON to add to the repository.
             </DialogDescription>
           </DialogHeader>
           
@@ -368,77 +289,9 @@ const FAQManagement = ({ onStatsUpdate }) => {
             <Button variant="outline" onClick={() => setShowAddDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={handleAddFAQ}>
-              <Plus className="w-4 h-4 mr-2" />
-              Add FAQ
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit FAQ Dialog */}
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>Edit FAQ</DialogTitle>
-            <DialogDescription>
-              Update the FAQ entry. Use color highlighting syntax like red`text` for emphasis.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4 py-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Question *</label>
-                <Input
-                  value={formData.question}
-                  onChange={(e) => handleInputChange('question', e.target.value)}
-                  placeholder="Enter the FAQ question"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Category *</label>
-                <Input
-                  value={formData.category}
-                  onChange={(e) => handleInputChange('category', e.target.value)}
-                  placeholder="Enter category (e.g., Getting Started, Features, etc.)"
-                  list="categories-edit"
-                />
-                <datalist id="categories-edit">
-                  {categories.map((category) => (
-                    <option key={category} value={category} />
-                  ))}
-                </datalist>
-              </div>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium mb-2">Answer *</label>
-              <Textarea
-                value={formData.answer}
-                onChange={(e) => handleInputChange('answer', e.target.value)}
-                placeholder="Enter the detailed answer. Use red`text`, blue`text`, yellow`text` for highlighting."
-                rows={6}
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium mb-2">Tags</label>
-              <Input
-                value={formData.tags}
-                onChange={(e) => handleInputChange('tags', e.target.value)}
-                placeholder="tag1, tag2, tag3"
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleUpdateFAQ}>
-              <Save className="w-4 h-4 mr-2" />
-              Update FAQ
+            <Button onClick={handlePreviewFAQ}>
+              <Eye className="w-4 h-4 mr-2" />
+              Preview FAQ
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -450,7 +303,7 @@ const FAQManagement = ({ onStatsUpdate }) => {
           <DialogHeader>
             <DialogTitle>FAQ Preview</DialogTitle>
             <DialogDescription>
-              Preview how the FAQ will appear to users with highlighting.
+              Preview how the FAQ will appear to users with highlighting. Copy the JSON to add it to the repository.
             </DialogDescription>
           </DialogHeader>
           
@@ -482,13 +335,30 @@ const FAQManagement = ({ onStatsUpdate }) => {
                   ))}
                 </div>
               )}
+
+              {/* Instructions */}
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <h4 className="font-medium mb-2 text-blue-800">Manual Addition Process</h4>
+                <ol className="text-sm text-blue-700 space-y-1">
+                  <li>1. Click "Copy JSON" to copy the FAQ data</li>
+                  <li>2. Navigate to <code>frontend/src/data/permanentFAQs.js</code></li>
+                  <li>3. Add the FAQ object to the PERMANENT_FAQS array</li>
+                  <li>4. Commit and push the changes</li>
+                </ol>
+              </div>
             </div>
           )}
 
-          <DialogFooter>
+          <DialogFooter className="flex gap-3">
             <Button variant="outline" onClick={() => setShowPreviewDialog(false)}>
               Close
             </Button>
+            {previewFAQ && !previewFAQ.isPermanent && (
+              <Button onClick={handleCopyFAQJSON} className="bg-green-600 hover:bg-green-700">
+                <Copy className="w-4 h-4 mr-2" />
+                Copy JSON
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -502,9 +372,7 @@ const FAQManagement = ({ onStatsUpdate }) => {
               <p className="text-muted-foreground">Total FAQs</p>
             </div>
             <div className="text-center">
-              <p className="font-medium">
-                {filteredFAQs.filter(f => f.isPermanent).length}
-              </p>
+              <p className="font-medium">{filteredFAQs.length}</p>
               <p className="text-muted-foreground">Permanent</p>
             </div>
             {categories.slice(0, 2).map(category => (

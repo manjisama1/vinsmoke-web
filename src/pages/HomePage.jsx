@@ -4,16 +4,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { MessageSquare, Plug, HelpCircle, HeadphonesIcon, Shield, ArrowRight } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useData } from '@/contexts/DataContext';
+import { PERMANENT_FAQS } from '@/data/permanentFAQs';
 import { isAdmin } from '@/config/admin';
 import ServerStatus from '@/components/ServerStatus';
 
 const HomePage = () => {
   const { user } = useAuth();
-  const { faqs } = useData();
 
   // Get top 3 most important FAQs for homepage preview
-  const featuredFAQs = faqs
+  const featuredFAQs = PERMANENT_FAQS
     .filter(faq => ['Getting Started', 'Sessions', 'Security'].includes(faq.category))
     .slice(0, 3);
 

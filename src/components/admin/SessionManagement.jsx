@@ -9,10 +9,12 @@ import {
   RefreshCw, 
   Calendar,
   Clock,
-  User
+  User,
+  Phone
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { adminApi } from '@/utils/adminApi';
+import { formatDateIST, formatTimeRemaining, formatPhoneNumber } from '@/utils/timeFormat';
 
 const SessionManagement = ({ onStatsUpdate }) => {
   const [sessions, setSessions] = useState([]);
@@ -91,24 +93,16 @@ const SessionManagement = ({ onStatsUpdate }) => {
   };
 
   const filteredSessions = sessions.filter(session =>
-    session.sessionId.toLowerCase().includes(searchQuery.toLowerCase())
+    session.sessionId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (session.userPhoneNumber && session.userPhoneNumber.includes(searchQuery))
   );
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleString();
+    return formatDateIST(dateString);
   };
 
   const getTimeRemaining = (expiresAt) => {
-    const now = new Date();
-    const expiry = new Date(expiresAt);
-    const diff = expiry - now;
-    
-    if (diff <= 0) return 'Expired';
-    
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    
-    return `${hours}h ${minutes}m`;
+    return formatTimeRemaining(expiresAt);
   };
 
   return (
@@ -125,10 +119,10 @@ const SessionManagement = ({ onStatsUpdate }) => {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
           <Input
-            placeholder="Search sessions..."
+            placeholder="Search sessions or phone numbers..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 w-full sm:w-64"
+            className="pl-10 w-full sm:w-80"
           />
         </div>
       </div>
@@ -156,9 +150,19 @@ const SessionManagement = ({ onStatsUpdate }) => {
             <Card key={session.sessionId} className="border-border">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg font-mono">
-                    {session.sessionId}
-                  </CardTitle>
+                  <div className="flex flex-col gap-1">
+                    <CardTitle className="text-lg font-mono">
+                      {session.sessionId}
+                    </CardTitle>
+                    {session.userPhoneNumber && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Phone className="w-4 h-4" />
+                        <span className="font-medium text-primary">
+                          {formatPhoneNumber(session.userPhoneNumber)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                   <div className="flex gap-2">
                     <Button
                       variant="outline"

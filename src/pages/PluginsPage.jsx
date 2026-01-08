@@ -8,62 +8,152 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
-import { Filter, Plus, Search, Copy, Heart, MessageCircle, ExternalLink, Sticker, Image as ImageIcon, Smile, Github } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { 
+  Filter, Plus, Search, Copy, Heart, MessageCircle, ExternalLink, 
+  Upload, Download, Trash2, Settings, Star, CheckCircle, X,
+  Music, Video, Download as DownloadIcon, Gamepad2, Brain, 
+  Globe, Search as SearchIcon, Database, Info, Wrench, Github, RefreshCw
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import { useLikes } from '@/contexts/LikeContext';
 import { API_ENDPOINTS } from '@/config/api';
+import { 
+  PERMANENT_PLUGINS, 
+  getPermanentPluginTypes, 
+  searchPermanentPlugins, 
+  filterPermanentPluginsByType, 
+  sortPermanentPlugins,
+  PLUGIN_CATEGORIES
+} from '@/data/permanentPlugins';
+import githubStarCache from '@/utils/githubStarCache';
+import PluginUploader from '@/components/PluginUploader';
 
 const PluginsPage = () => {
   const { user, requireAuth, showLogin, setShowLogin, startGitHubLogin, loading: authLoading } = useAuth();
   const { plugins, loading, refreshData } = useData();
   const { toggleLike, getPendingLikeStatus } = useLikes();
   
+  // Combined plugins state (permanent + backend)
+  const [allPlugins, setAllPlugins] = useState([]);
   const [filteredPlugins, setFilteredPlugins] = useState([]);
+  const [gistStarCounts, setGistStarCounts] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [sortFilter, setSortFilter] = useState('recent');
   const [statusFilter, setStatusFilter] = useState('all'); // all, approved, pending
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [backendError, setBackendError] = useState(false);
+  const [activeTab, setActiveTab] = useState('all'); // all, community, pending
 
   // Form state for adding plugins
   const [newPlugin, setNewPlugin] = useState({
     name: '',
     description: '',
     type: '',
-    gistLink: '',
-
+    tags: '',
+    features: ''
   });
 
   const typeIcons = {
-    sticker: Sticker,
-    media: ImageIcon,
-    fun: Smile,
+    audio: Music,
+    video: Video,
+    download: DownloadIcon,
+    game: Gamepad2,
+    AI: Brain,
+    API: Globe,
+    scrape: SearchIcon,
+    data: Database,
+    info: Info,
+    tool: Wrench,
   };
 
   const typeColors = {
-    sticker: 'bg-blue-100 text-blue-800 border-blue-200',
-    media: 'bg-green-100 text-green-800 border-green-200',
-    fun: 'bg-purple-100 text-purple-800 border-purple-200',
+    audio: 'bg-purple-100 text-purple-800 border-purple-200',
+    video: 'bg-red-100 text-red-800 border-red-200',
+    download: 'bg-green-100 text-green-800 border-green-200',
+    game: 'bg-blue-100 text-blue-800 border-blue-200',
+    AI: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+    API: 'bg-cyan-100 text-cyan-800 border-cyan-200',
+    scrape: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+    data: 'bg-teal-100 text-teal-800 border-teal-200',
+    info: 'bg-gray-100 text-gray-800 border-gray-200',
+    tool: 'bg-orange-100 text-orange-800 border-orange-200',
   };
 
-  // Data is now loaded automatically via DataProvider - no more API calls!
-  
+  // Load plugins on component mount
+  useEffect(() => {
+    combineAllPlugins();
+  }, [plugins]);
+
+  // Filter and sort when filters change
   useEffect(() => {
     filterAndSortPlugins();
-  }, [plugins, searchTerm, typeFilter, sortFilter, statusFilter]);
+  }, [allPlugins, searchTerm, typeFilter, sortFilter, statusFilter, activeTab]);
+
+  // Fetch GitHub star counts for all plugins
+  useEffect(() => {
+    fetchAllGistStars();
+  }, [allPlugins]);
+
+  const combineAllPlugins = () => {
+    let combined = [];
+    
+    // Add permanent plugins (always first)
+    combined = [...PERMANENT_PLUGINS];
+    
+    // Add backend plugins
+    combined = [...combined, ...plugins];
+    
+    setAllPlugins(combined);
+  };
+
+  const fetchAllGistStars = async () => {
+    const gistUrls = allPlugins.map(plugin => plugin.gistLink).filter(Boolean);
+    if (gistUrls.length === 0) return;
+
+    try {
+      // Get cached results immediately
+      const cachedResults = {};
+      gistUrls.forEach(url => {
+        if (githubStarCache.isCached(url)) {
+          cachedResults[url] = githubStarCache.getCachedStars(url);
+        }
+      });
+      
+      // Update state with cached results
+      if (Object.keys(cachedResults).length > 0) {
+        setGistStarCounts(prev => ({ ...prev, ...cachedResults }));
+      }
+
+      // Fetch uncached results in background
+      const starCounts = await githubStarCache.batchFetchStars(gistUrls);
+      setGistStarCounts(starCounts);
+    } catch (error) {
+      console.error('Error fetching gist stars:', error);
+    }
+  };
 
   const filterAndSortPlugins = () => {
-    let filtered = [...plugins];
+    let filtered = [...allPlugins];
+
+    // Apply tab filter first
+    if (activeTab === 'community') {
+      filtered = filtered.filter(plugin => !plugin.isPermanent);
+    } else if (activeTab === 'pending') {
+      filtered = filtered.filter(plugin => plugin.status === 'pending');
+    }
+    // 'all' tab shows everything
 
     // Apply search filter
     if (searchTerm) {
       filtered = filtered.filter(plugin =>
         plugin.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         plugin.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        plugin.author.toLowerCase().includes(searchTerm.toLowerCase())
+        plugin.author.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (plugin.tags && plugin.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase())))
       );
     }
 
@@ -90,7 +180,11 @@ const PluginsPage = () => {
         filtered.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
         break;
       case 'liked':
-        filtered.sort((a, b) => b.likes - a.likes);
+        filtered.sort((a, b) => {
+          const aStars = gistStarCounts[a.gistLink] || a.likes || 0;
+          const bStars = gistStarCounts[b.gistLink] || b.likes || 0;
+          return bStars - aStars;
+        });
         break;
       case 'az':
         filtered.sort((a, b) => a.name.localeCompare(b.name));
@@ -102,18 +196,24 @@ const PluginsPage = () => {
     setFilteredPlugins(filtered);
   };
 
-  const handleAddPlugin = async (e) => {
+  const handleSubmitPlugin = async (e) => {
     e.preventDefault();
 
-    if (!newPlugin.name || !newPlugin.description || !newPlugin.type || !newPlugin.gistLink) {
+    if (!newPlugin.name || !newPlugin.description || !newPlugin.type) {
       toast.error('Please fill in all required fields');
       return;
     }
 
     try {
       const pluginData = {
-        ...newPlugin,
-        author: user?.name || user?.login || 'Anonymous'
+        name: newPlugin.name.trim(),
+        author: user?.name || user?.login || 'Anonymous',
+        description: newPlugin.description.trim(),
+        type: newPlugin.type,
+        tags: newPlugin.tags ? newPlugin.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+        features: newPlugin.features ? newPlugin.features.split(',').map(f => f.trim()).filter(Boolean) : [],
+        submittedBy: user?.id || user?.login || 'anonymous',
+        submittedAt: new Date().toISOString()
       };
 
       const response = await fetch(API_ENDPOINTS.plugins, {
@@ -129,47 +229,39 @@ const PluginsPage = () => {
       if (data.success) {
         // Refresh data to get updated plugins list
         await refreshData();
-        setNewPlugin({ name: '', description: '', type: '', gistLink: '' });
+        setNewPlugin({ name: '', description: '', type: '', tags: '', features: '' });
         setShowAddDialog(false);
-        toast.success('Your plugin has been submitted! Wait for approval.', {
-          duration: 5000
-        });
+        toast.success('Plugin submitted successfully! It will appear in the admin panel for approval.');
       } else {
-        throw new Error(data.error || 'Failed to add plugin');
+        throw new Error(data.error || 'Failed to submit plugin');
       }
     } catch (error) {
-      console.error('Add Plugin Error:', error);
-      toast.error(error.message || 'Failed to add plugin');
+      console.error('Submit Plugin Error:', error);
+      toast.error(error.message || 'Failed to submit plugin');
     }
   };
 
   const handleLikePlugin = (pluginId) => {
-    requireAuth(() => {
-      if (!user) {
-        return;
-      }
-
-      const plugin = plugins.find(p => p.id === pluginId);
-      const currentlyLiked = plugin?.likedBy?.includes(user.id.toString()) || false;
-      const pendingStatus = getPendingLikeStatus(pluginId);
-      const actualStatus = pendingStatus !== undefined ? pendingStatus : currentlyLiked;
-      
-      toggleLike(pluginId, user.id.toString(), actualStatus);
-      
-      const newStatus = !actualStatus;
-      toast.success(newStatus ? 'Plugin liked!' : 'Plugin unliked!');
-    });
+    const plugin = allPlugins.find(p => p.id === pluginId);
+    
+    // For now, just show a message since likes will be fetched from GitHub
+    if (plugin?.gistLink) {
+      window.open(plugin.gistLink, '_blank');
+      toast.info('Redirected to GitHub Gist. Star it there to show your support!');
+    } else {
+      toast.info('GitHub integration coming soon!');
+    }
   };
 
-  const copyGistLink = (gistUrl) => {
-    navigator.clipboard.writeText(gistUrl);
-    toast.success('Gist link copied to clipboard!');
+  const getPluginLikeCount = (plugin) => {
+    // Use GitHub star count if available, fallback to plugin likes
+    return gistStarCounts[plugin.gistLink] || plugin.likes || 0;
   };
 
-  const shareToWhatsApp = (pluginName, gistUrl) => {
-    const message = `Check out this awesome plugin: ${pluginName}\n\nGist Link: ${gistUrl}\n\nInstall it on your Vinsmoke Bot!`;
-    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
-    window.open(whatsappUrl, '_blank');
+  const copyPluginLink = (plugin) => {
+    const pluginUrl = `${window.location.origin}/plugins?search=${encodeURIComponent(plugin.name)}`;
+    navigator.clipboard.writeText(pluginUrl);
+    toast.success('Plugin link copied to clipboard!');
   };
 
   const getTypeColor = (type) => {
@@ -195,17 +287,35 @@ const PluginsPage = () => {
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-3">
             <h1 className="text-3xl sm:text-4xl font-bold text-foreground">Plugin Library</h1>
+            <Badge className="bg-blue-100 text-blue-800 border-blue-200">
+              {allPlugins.length} Total
+            </Badge>
             {plugins.filter(p => p.status === 'pending').length > 0 && (
               <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">
                 {plugins.filter(p => p.status === 'pending').length} Pending
               </Badge>
             )}
-
           </div>
           <p className="text-lg text-muted-foreground">
             Discover and manage plugins to extend your bot's functionality
           </p>
         </div>
+
+        {/* Plugin Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="all">All ({allPlugins.length})</TabsTrigger>
+            <TabsTrigger value="community">Community ({plugins.length})</TabsTrigger>
+            <TabsTrigger value="pending">
+              Pending ({plugins.filter(p => p.status === 'pending').length})
+              {plugins.filter(p => p.status === 'pending').length > 0 && (
+                <Badge className="ml-2 bg-yellow-100 text-yellow-800 border-yellow-200 text-xs">
+                  {plugins.filter(p => p.status === 'pending').length}
+                </Badge>
+              )}
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
 
         {/* Search and Actions */}
         <div className="flex flex-col sm:flex-row gap-4 mb-6">
@@ -241,10 +351,11 @@ const PluginsPage = () => {
                         <SelectValue placeholder="All Types" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All Types</SelectItem>
-                        <SelectItem value="sticker">Stickers</SelectItem>
-                        <SelectItem value="media">Media</SelectItem>
-                        <SelectItem value="fun">Fun</SelectItem>
+                        {PLUGIN_CATEGORIES.map(category => (
+                          <SelectItem key={category.value} value={category.value}>
+                            {category.label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -279,86 +390,14 @@ const PluginsPage = () => {
               </SheetContent>
             </Sheet>
 
+            {/* Plugin Management Buttons */}
             <Button
               className="bg-primary hover:bg-primary-hover flex-1 sm:flex-none"
               onClick={() => requireAuth(() => setShowAddDialog(true))}
             >
               <Plus className="w-4 h-4 mr-2" />
-              Add Plugin
+              Submit Plugin
             </Button>
-
-            <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-              <DialogContent className="sm:max-w-[500px]">
-                <DialogHeader>
-                  <DialogTitle>Add New Plugin</DialogTitle>
-                  <DialogDescription>
-                    Share your custom plugin with the community. Your plugin will be reviewed by our team before being made available to all users.
-                  </DialogDescription>
-                </DialogHeader>
-                
-
-                <form onSubmit={handleAddPlugin} className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Plugin Name *</Label>
-                    <Input
-                      id="name"
-                      placeholder="My Awesome Plugin"
-                      value={newPlugin.name}
-                      onChange={(e) => setNewPlugin({ ...newPlugin, name: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="description">Description *</Label>
-                    <Textarea
-                      id="description"
-                      placeholder="Describe what your plugin does..."
-                      value={newPlugin.description}
-                      onChange={(e) => setNewPlugin({ ...newPlugin, description: e.target.value })}
-                      rows={3}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="type">Type *</Label>
-                    <Select
-                      value={newPlugin.type}
-                      onValueChange={(value) => setNewPlugin({ ...newPlugin, type: value })}
-                    >
-                      <SelectTrigger id="type">
-                        <SelectValue placeholder="Select plugin type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="sticker">Sticker</SelectItem>
-                        <SelectItem value="media">Media</SelectItem>
-                        <SelectItem value="fun">Fun</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="gistLink">Gist Link *</Label>
-                    <Input
-                      id="gistLink"
-                      type="url"
-                      placeholder="https://gist.github.com/..."
-                      value={newPlugin.gistLink}
-                      onChange={(e) => setNewPlugin({ ...newPlugin, gistLink: e.target.value })}
-                      required
-                    />
-                  </div>
-
-
-                  <DialogFooter className="flex gap-3">
-                    <Button type="button" variant="outline" onClick={() => setShowAddDialog(false)} className="flex-1">
-                      Cancel
-                    </Button>
-                    <Button type="submit" className="flex-1 bg-primary hover:bg-primary-hover">
-                      Add Plugin
-                    </Button>
-                  </DialogFooter>
-                </form>
-              </DialogContent>
-            </Dialog>
           </div>
         </div>
 
@@ -368,6 +407,7 @@ const PluginsPage = () => {
             const TypeIcon = typeIcons[plugin.type];
             const isPending = plugin.status === 'pending';
             const isApproved = plugin.status === 'approved' || !plugin.status;
+            const likeCount = getPluginLikeCount(plugin);
             
             return (
               <Card 
@@ -387,7 +427,7 @@ const PluginsPage = () => {
                         </CardTitle>
                         {isPending && (
                           <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200 text-xs">
-                            Pending Approval
+                            Pending
                           </Badge>
                         )}
                       </div>
@@ -404,10 +444,28 @@ const PluginsPage = () => {
                     {plugin.description}
                     {isPending && (
                       <span className="block text-xs text-yellow-600 mt-2 font-medium">
-                        ⏳ This plugin is awaiting admin approval
+                        ⏳ This plugin is awaiting manual approval
                       </span>
                     )}
                   </CardDescription>
+                  
+                  {/* Features */}
+                  {plugin.features && plugin.features.length > 0 && (
+                    <div className="mt-2">
+                      <div className="flex flex-wrap gap-1">
+                        {plugin.features.slice(0, 2).map((feature, index) => (
+                          <Badge key={index} variant="outline" className="text-xs">
+                            {feature}
+                          </Badge>
+                        ))}
+                        {plugin.features.length > 2 && (
+                          <Badge variant="outline" className="text-xs">
+                            +{plugin.features.length - 2} more
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </CardHeader>
                 <CardContent className="pt-0 flex-1 flex flex-col">
                   <div className="flex items-center justify-between mt-auto">
@@ -415,7 +473,7 @@ const PluginsPage = () => {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => !isPending && copyGistLink(plugin.gistLink)}
+                        onClick={() => !isPending && copyPluginLink(plugin)}
                         className={`text-xs ${isPending ? 'opacity-50 cursor-not-allowed' : ''}`}
                         disabled={isPending}
                       >
@@ -430,69 +488,23 @@ const PluginsPage = () => {
                         className={`text-xs ${
                           isPending 
                             ? 'opacity-50 cursor-not-allowed' 
-                            : (() => {
-                                const currentlyLiked = user && plugin.likedBy && plugin.likedBy.includes(user.id.toString());
-                                const pendingStatus = getPendingLikeStatus(plugin.id);
-                                const actualStatus = pendingStatus !== undefined ? pendingStatus : currentlyLiked;
-                                return actualStatus
-                                  ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'
-                                  : '';
-                              })()
+                            : 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100'
                         }`}
                         disabled={isPending}
+                        title="Star on GitHub"
                       >
-                        <Heart 
-                          className={`w-3 h-3 mr-1 ${
-                            (() => {
-                              const currentlyLiked = user && plugin.likedBy && plugin.likedBy.includes(user.id.toString());
-                              const pendingStatus = getPendingLikeStatus(plugin.id);
-                              const actualStatus = pendingStatus !== undefined ? pendingStatus : currentlyLiked;
-                              return actualStatus && !isPending ? 'fill-red-500 text-red-500' : '';
-                            })()
-                          }`} 
-                        />
-                        {(() => {
-                          const currentlyLiked = user && plugin.likedBy && plugin.likedBy.includes(user.id.toString());
-                          const pendingStatus = getPendingLikeStatus(plugin.id);
-                          
-                          if (pendingStatus !== undefined) {
-                            // User has pending like/unlike
-                            if (pendingStatus && !currentlyLiked) {
-                              // User liked (pending), show +1
-                              return plugin.likes + 1;
-                            } else if (!pendingStatus && currentlyLiked) {
-                              // User unliked (pending), show -1
-                              return plugin.likes - 1;
-                            }
-                          }
-                          
-                          // No pending changes, show original count
-                          return plugin.likes;
-                        })()}
-                      </Button>
-
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => !isPending && shareToWhatsApp(plugin.name, plugin.gistLink)}
-                        className={`text-xs ${
-                          isPending 
-                            ? 'opacity-50 cursor-not-allowed' 
-                            : 'bg-green-50 hover:bg-green-100 text-green-700 border-green-200'
-                        }`}
-                        disabled={isPending}
-                      >
-                        <MessageCircle className="w-3 h-3 mr-1" />
-                        WhatsApp
+                        <Star className="w-3 h-3 mr-1" />
+                        {likeCount}
                       </Button>
                     </div>
 
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => !isPending && window.open(plugin.gistLink, '_blank')}
+                      onClick={() => !isPending && plugin.gistLink && window.open(plugin.gistLink, '_blank')}
                       className={`text-xs ${isPending ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      disabled={isPending}
+                      disabled={isPending || !plugin.gistLink}
+                      title="View Code"
                     >
                       <ExternalLink className="w-3 h-3" />
                     </Button>
@@ -532,6 +544,110 @@ const PluginsPage = () => {
           </div>
         )}
       </div>
+
+      {/* Plugin Submission Dialog */}
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Submit Plugin</DialogTitle>
+            <DialogDescription>
+              Submit your plugin for admin review and approval. Your GitHub username will be automatically detected.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <form onSubmit={handleSubmitPlugin} className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Plugin Name *</Label>
+              <Input
+                id="name"
+                placeholder="My Awesome Plugin"
+                value={newPlugin.name}
+                onChange={(e) => setNewPlugin({ ...newPlugin, name: e.target.value })}
+                required
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="type">Category *</Label>
+              <Select
+                value={newPlugin.type}
+                onValueChange={(value) => setNewPlugin({ ...newPlugin, type: value })}
+              >
+                <SelectTrigger id="type">
+                  <SelectValue placeholder="Select plugin category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PLUGIN_CATEGORIES.filter(cat => cat.value !== 'all').map(category => (
+                    <SelectItem key={category.value} value={category.value}>
+                      {category.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="description">Description *</Label>
+              <Textarea
+                id="description"
+                placeholder="Describe what your plugin does and its key features..."
+                value={newPlugin.description}
+                onChange={(e) => setNewPlugin({ ...newPlugin, description: e.target.value })}
+                rows={3}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="tags">Tags (optional)</Label>
+              <Input
+                id="tags"
+                placeholder="tag1, tag2, tag3"
+                value={newPlugin.tags}
+                onChange={(e) => setNewPlugin({ ...newPlugin, tags: e.target.value })}
+              />
+              <p className="text-xs text-muted-foreground">
+                Comma-separated tags to help users find your plugin
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="features">Features (optional)</Label>
+              <Textarea
+                id="features"
+                placeholder="Feature 1, Feature 2, Feature 3"
+                value={newPlugin.features}
+                onChange={(e) => setNewPlugin({ ...newPlugin, features: e.target.value })}
+                rows={2}
+              />
+              <p className="text-xs text-muted-foreground">
+                Comma-separated list of key features
+              </p>
+            </div>
+
+            {/* User Info Display */}
+            {user && (
+              <div className="bg-muted/50 p-3 rounded-lg">
+                <p className="text-sm text-muted-foreground">
+                  <strong>Author:</strong> {user.name || user.login}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  This will be automatically set as the plugin author
+                </p>
+              </div>
+            )}
+
+            <DialogFooter className="flex gap-3">
+              <Button type="button" variant="outline" onClick={() => setShowAddDialog(false)} className="flex-1">
+                Cancel
+              </Button>
+              <Button type="submit" className="flex-1 bg-primary hover:bg-primary-hover">
+                Submit Plugin
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Login Dialog */}
       <Dialog open={showLogin} onOpenChange={setShowLogin}>
