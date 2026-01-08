@@ -20,7 +20,9 @@ const PluginUploader = ({ onClose }) => {
     name: '',
     description: '',
     type: '',
-    gistLink: ''
+    gistLink: '',
+    tags: '',
+    features: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
@@ -73,8 +75,8 @@ const PluginUploader = ({ onClose }) => {
         description: formData.description.trim(),
         type: formData.type,
         gistLink: formData.gistLink.trim(),
-        tags: [],
-        features: [],
+        tags: formData.tags ? formData.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+        features: formData.features ? formData.features.split(',').map(f => f.trim()).filter(Boolean) : [],
         submittedBy: user.id,
         submittedAt: new Date().toISOString(),
         status: 'pending'
@@ -95,7 +97,7 @@ const PluginUploader = ({ onClose }) => {
 
       if (data.success) {
         toast.success('Plugin submitted successfully!');
-        setFormData({ name: '', description: '', type: '', gistLink: '' });
+        setFormData({ name: '', description: '', type: '', gistLink: '', tags: '', features: '' });
         setErrors({});
         if (onClose) onClose();
       } else {
@@ -218,6 +220,31 @@ const PluginUploader = ({ onClose }) => {
               {errors.gistLink}
             </p>
           )}
+        </div>
+
+        {/* Tags (Optional) */}
+        <div className="space-y-2">
+          <Label htmlFor="tags">Tags (optional)</Label>
+          <Input
+            id="tags"
+            placeholder="media, download, youtube"
+            value={formData.tags}
+            onChange={(e) => setFormData(prev => ({ ...prev, tags: e.target.value }))}
+            disabled={isSubmitting}
+          />
+        </div>
+
+        {/* Features (Optional) */}
+        <div className="space-y-2">
+          <Label htmlFor="features">Features (optional)</Label>
+          <Textarea
+            id="features"
+            placeholder="High quality downloads, Multiple formats"
+            value={formData.features}
+            onChange={(e) => setFormData(prev => ({ ...prev, features: e.target.value }))}
+            className="min-h-[60px]"
+            disabled={isSubmitting}
+          />
         </div>
 
         {/* Author Info */}

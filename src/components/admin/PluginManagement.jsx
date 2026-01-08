@@ -39,18 +39,50 @@ const PluginManagement = ({ onStatsUpdate }) => {
       await navigator.clipboard.writeText(jsonString);
       toast.success('Plugin JSON copied to clipboard! Add it to permanentPlugins.js');
       
-      // Mark as approved in backend
-      updatePluginStatus(plugin.id, 'approved');
+      // Mark as approved in backend using direct API call
+      const data = await adminApi.updatePluginStatus(plugin.id, 'approved');
+      if (data.success) {
+        refreshData(); // Refresh the data immediately
+        onStatsUpdate?.();
+      }
     } catch (error) {
-      toast.error('Failed to copy to clipboard');
+      console.error('Copy Plugin JSON Error:', error);
+      toast.error('Failed to copy to clipboard or approve plugin');
     }
   };
 
-  const handleDeletePlugin = (pluginId) => {
-    if (!confirm('Are you sure you want to delete this plugin? Click "Save Changes" to apply the deletion.')) return;
+  const handleDeletePlugin = async (pluginId) => {
+    if (!confirm('Are you sure you want to delete this plugin?')) return;
 
-    deletePlugin(pluginId);
-    toast.success('Plugin marked for deletion! Click "Save Changes" to apply.');
+    try {
+      const data = await adminApi.deletePlugin(pluginId);
+      if (data.success) {
+        toast.success('Plugin deleted successfully');
+        refreshData(); // Refresh the data immediately
+        onStatsUpdate?.();
+      } else {
+        toast.error(data.error || 'Failed to delete plugin');
+      }
+    } catch (error) {
+      console.error('Delete Plugin Error:', error);
+      toast.error(error.message || 'Failed to delete plugin');
+    }
+  };
+
+  const handleRejectPlugin = async (pluginId) => {
+    try {
+      const data = await adminApi.updatePluginStatus(pluginId, 'rejected');
+      if (data.success) {
+        toast.success('Plugin rejected');
+        refreshData(); // Refresh the data immediately
+        onStatsUpdate?.();
+      } else {
+        toast.error(data.error || 'Failed to reject plugin');
+      }
+    } catch (error) {
+      console.error('Reject Plugin Error:', error);
+      toast.error(error.message || 'Failed to reject plugin');
+    }
   };
 
   const downloadPluginData = () => {
@@ -190,7 +222,7 @@ const PluginManagement = ({ onStatsUpdate }) => {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => updatePluginStatus(plugin.id, 'rejected')}
+                          onClick={() => handleRejectPlugin(plugin.id)}
                           className="text-red-600 hover:text-red-700"
                         >
                           <X className="w-4 h-4" />
