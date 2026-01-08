@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Download, Trash2, Search, RefreshCw, Check, X, Eye, Calendar, User, Heart, ExternalLink, Copy } from 'lucide-react';
+import { Download, Trash2, Search, RefreshCw, Check, X, Eye, Calendar, User, Heart, ExternalLink, Copy, Clock, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { adminApi } from '@/utils/adminApi';
 import { useAdminData } from '@/contexts/AdminDataContext';
@@ -12,10 +13,13 @@ import { generatePluginId } from '@/utils/idGenerator';
 
 const PluginManagement = ({ onStatsUpdate }) => {
   const { plugins, loading, refreshData, updatePlugin, deletePlugin } = useAdminData();
+  const [pluginRequests, setPluginRequests] = useState([]);
+  const [requestsLoading, setRequestsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
   const [selectedPlugin, setSelectedPlugin] = useState(null);
+  const [activeTab, setActiveTab] = useState('approved');
 
   const updatePluginStatus = (pluginId, status) => {
     updatePlugin(pluginId, { status });

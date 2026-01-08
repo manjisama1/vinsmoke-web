@@ -88,7 +88,6 @@ const FAQPage = () => {
             <span className="text-sm font-medium text-green-700">
               {PERMANENT_FAQS.length} FAQs Available
             </span>
-            <span className="text-xs text-muted-foreground">(Frontend-based)</span>
           </div>
         </div>
 

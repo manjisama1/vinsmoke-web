@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Filter, Plus, Search, Copy, Heart, MessageCircle, ExternalLink, 
-  Upload, Download, Trash2, Settings, Star, CheckCircle, X,
+  Upload, Download, Trash2, Settings, CheckCircle, X,
   Music, Video, Download as DownloadIcon, Gamepad2, Brain, 
   Globe, Search as SearchIcon, Database, Info, Wrench, Github, RefreshCw
 } from 'lucide-react';
@@ -28,18 +28,32 @@ import {
   sortPermanentPlugins,
   PLUGIN_CATEGORIES
 } from '@/data/permanentPlugins';
-import githubStarCache from '@/utils/githubStarCache';
 import PluginUploader from '@/components/PluginUploader';
 
+// Debounce hook for search optimization
+const useDebounce = (value, delay) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+};
+
 const PluginsPage = () => {
-  const { user, requireAuth, showLogin, setShowLogin, startGitHubLogin, loading: authLoading } = useAuth();
+  const { user, requireAuth, showLogin, setShowLogin, loading: authLoading } = useAuth();
   const { plugins, loading, refreshData } = useData();
   const { toggleLike, getPendingLikeStatus } = useLikes();
   
   // Combined plugins state (permanent + backend)
   const [allPlugins, setAllPlugins] = useState([]);
-  const [filteredPlugins, setFilteredPlugins] = useState([]);
-  const [gistStarCounts, setGistStarCounts] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [sortFilter, setSortFilter] = useState('recent');
@@ -47,6 +61,9 @@ const PluginsPage = () => {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [backendError, setBackendError] = useState(false);
   const [activeTab, setActiveTab] = useState('all'); // all, community, pending
+
+  // Debounced search term for performance
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
   // Form state for adding plugins
   const [newPlugin, setNewPlugin] = useState({
@@ -88,15 +105,53 @@ const PluginsPage = () => {
     combineAllPlugins();
   }, [plugins]);
 
-  // Filter and sort when filters change
-  useEffect(() => {
-    filterAndSortPlugins();
-  }, [allPlugins, searchTerm, typeFilter, sortFilter, statusFilter, activeTab]);
+  // Optimized filtering and sorting with memoization
+  const filteredPlugins = useMemo(() => {
+    let filtered = [...allPlugins];
 
-  // Fetch GitHub star counts for all plugins
-  useEffect(() => {
-    fetchAllGistStars();
-  }, [allPlugins]);
+    // Filter by search term
+    if (debouncedSearchTerm) {
+      const searchLower = debouncedSearchTerm.toLowerCase();
+      filtered = filtered.filter(plugin =>
+        plugin.name.toLowerCase().includes(searchLower) ||
+        plugin.description.toLowerCase().includes(searchLower) ||
+        plugin.author.toLowerCase().includes(searchLower) ||
+        (plugin.tags && plugin.tags.some(tag => tag.toLowerCase().includes(searchLower)))
+      );
+    }
+
+    // Filter by type
+    if (typeFilter !== 'all') {
+      filtered = filtered.filter(plugin => plugin.type === typeFilter);
+    }
+
+    // Filter by status
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(plugin => plugin.status === statusFilter);
+    }
+
+    // Filter by active tab
+    if (activeTab === 'community') {
+      filtered = filtered.filter(plugin => plugin.source === 'backend');
+    } else if (activeTab === 'pending') {
+      filtered = filtered.filter(plugin => plugin.status === 'pending');
+    }
+
+    // Sort plugins
+    filtered.sort((a, b) => {
+      switch (sortFilter) {
+        case 'name':
+          return a.name.localeCompare(b.name);
+        case 'likes':
+          return (b.likes || 0) - (a.likes || 0);
+        case 'recent':
+        default:
+          return new Date(b.createdAt || b.updatedAt || 0) - new Date(a.createdAt || a.updatedAt || 0);
+      }
+    });
+
+    return filtered;
+  }, [allPlugins, debouncedSearchTerm, typeFilter, sortFilter, statusFilter, activeTab]);
 
   const combineAllPlugins = () => {
     let combined = [];
@@ -108,92 +163,6 @@ const PluginsPage = () => {
     combined = [...combined, ...plugins];
     
     setAllPlugins(combined);
-  };
-
-  const fetchAllGistStars = async () => {
-    const gistUrls = allPlugins.map(plugin => plugin.gistLink).filter(Boolean);
-    if (gistUrls.length === 0) return;
-
-    try {
-      // Get cached results immediately
-      const cachedResults = {};
-      gistUrls.forEach(url => {
-        if (githubStarCache.isCached(url)) {
-          cachedResults[url] = githubStarCache.getCachedStars(url);
-        }
-      });
-      
-      // Update state with cached results
-      if (Object.keys(cachedResults).length > 0) {
-        setGistStarCounts(prev => ({ ...prev, ...cachedResults }));
-      }
-
-      // Fetch uncached results in background
-      const starCounts = await githubStarCache.batchFetchStars(gistUrls);
-      setGistStarCounts(starCounts);
-    } catch (error) {
-      console.error('Error fetching gist stars:', error);
-    }
-  };
-
-  const filterAndSortPlugins = () => {
-    let filtered = [...allPlugins];
-
-    // Apply tab filter first
-    if (activeTab === 'community') {
-      filtered = filtered.filter(plugin => !plugin.isPermanent);
-    } else if (activeTab === 'pending') {
-      filtered = filtered.filter(plugin => plugin.status === 'pending');
-    }
-    // 'all' tab shows everything
-
-    // Apply search filter
-    if (searchTerm) {
-      filtered = filtered.filter(plugin =>
-        plugin.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        plugin.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        plugin.author.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (plugin.tags && plugin.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase())))
-      );
-    }
-
-    // Apply type filter
-    if (typeFilter && typeFilter !== 'all') {
-      filtered = filtered.filter(plugin => plugin.type === typeFilter);
-    }
-
-    // Apply status filter
-    if (statusFilter && statusFilter !== 'all') {
-      if (statusFilter === 'approved') {
-        filtered = filtered.filter(plugin => plugin.status === 'approved' || !plugin.status);
-      } else if (statusFilter === 'pending') {
-        filtered = filtered.filter(plugin => plugin.status === 'pending');
-      }
-    }
-
-    // Apply sorting
-    switch (sortFilter) {
-      case 'recent':
-        filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        break;
-      case 'old':
-        filtered.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-        break;
-      case 'liked':
-        filtered.sort((a, b) => {
-          const aStars = gistStarCounts[a.gistLink] || a.likes || 0;
-          const bStars = gistStarCounts[b.gistLink] || b.likes || 0;
-          return bStars - aStars;
-        });
-        break;
-      case 'az':
-        filtered.sort((a, b) => a.name.localeCompare(b.name));
-        break;
-      default:
-        break;
-    }
-
-    setFilteredPlugins(filtered);
   };
 
   const handleSubmitPlugin = async (e) => {
@@ -247,15 +216,10 @@ const PluginsPage = () => {
     // For now, just show a message since likes will be fetched from GitHub
     if (plugin?.gistLink) {
       window.open(plugin.gistLink, '_blank');
-      toast.info('Redirected to GitHub Gist. Star it there to show your support!');
+      toast.info('Redirected to GitHub Gist.');
     } else {
       toast.info('GitHub integration coming soon!');
     }
-  };
-
-  const getPluginLikeCount = (plugin) => {
-    // Use GitHub star count if available, fallback to plugin likes
-    return gistStarCounts[plugin.gistLink] || plugin.likes || 0;
   };
 
   const copyPluginLink = (plugin) => {
@@ -407,7 +371,6 @@ const PluginsPage = () => {
             const TypeIcon = typeIcons[plugin.type];
             const isPending = plugin.status === 'pending';
             const isApproved = plugin.status === 'approved' || !plugin.status;
-            const likeCount = getPluginLikeCount(plugin);
             
             return (
               <Card 
@@ -491,10 +454,10 @@ const PluginsPage = () => {
                             : 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100'
                         }`}
                         disabled={isPending}
-                        title="Star on GitHub"
+                        title="View on GitHub"
                       >
-                        <Star className="w-3 h-3 mr-1" />
-                        {likeCount}
+                        <Heart className="w-3 h-3 mr-1" />
+                        {plugin.likes || 0}
                       </Button>
                     </div>
 
@@ -669,7 +632,7 @@ const PluginsPage = () => {
               </p>
             </div>
             <Button
-              onClick={startGitHubLogin}
+              onClick={requireAuth}
               className="w-full bg-[#24292e] hover:bg-[#1a1e22] text-white"
             >
               <Github className="w-4 h-4 mr-2" />
