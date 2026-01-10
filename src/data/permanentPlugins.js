@@ -9,8 +9,20 @@ export const PERMANENT_PLUGINS = [
     "gistLink": "https://gist.github.com/manjisama1/c754223fcc5ec2fbc0b36d7211730610",
     "tags": ["WhatsApp checker"],
     "features": ["checker"]
+  },
+    {
+    "id": "plugin-bjIe1r",
+    "name": "areact",
+    "author": "manjisama1",
+    "description": "Auto react to incoming messages",
+    "type": "fun",
+    "gistLink": "https://gist.github.com/manjisama1/69e6ec7b3580af1b215ff4dd823a7c0a",
+    "tags": [
+      "auto",
+      "reaction"
+    ],
+    "features": ["auto react"]
   }
-
 ];
 
 // Get all plugin types from permanent plugins
