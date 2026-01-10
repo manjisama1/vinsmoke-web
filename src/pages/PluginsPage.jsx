@@ -20,6 +20,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import { useLikes } from '@/contexts/LikeContext';
 import { API_ENDPOINTS } from '@/config/api';
+import { adminApi } from '@/utils/adminApi';
 import { 
   PERMANENT_PLUGINS, 
   getPermanentPluginTypes, 
@@ -28,6 +29,7 @@ import {
   sortPermanentPlugins,
   PLUGIN_CATEGORIES
 } from '@/data/permanentPlugins';
+import { copyPluginToClipboard } from '@/utils/pluginApproval';
 import PluginUploader from '@/components/PluginUploader';
 
 // Debounce hook for search optimization
@@ -48,7 +50,7 @@ const useDebounce = (value, delay) => {
 };
 
 const PluginsPage = () => {
-  const { user, requireAuth, showLogin, setShowLogin, startGitHubLogin, loading: authLoading } = useAuth();
+  const { user, requireAuth, showLogin, setShowLogin, startGitHubLogin, loading: authLoading, isAdmin } = useAuth();
   const { plugins, loading, refreshData } = useData();
   const { toggleLike, getPendingLikeStatus } = useLikes();
   
@@ -70,12 +72,18 @@ const PluginsPage = () => {
     video: Video,
     download: DownloadIcon,
     game: Gamepad2,
+    fun: Heart,
     AI: Brain,
     API: Globe,
     scrape: SearchIcon,
     data: Database,
     info: Info,
     tool: Wrench,
+    utility: Settings,
+    social: MessageCircle,
+    media: Video,
+    admin: Settings,
+    sticker: Heart,
   };
 
   const typeColors = {
@@ -83,12 +91,18 @@ const PluginsPage = () => {
     video: 'bg-red-100 text-red-800 border-red-200',
     download: 'bg-green-100 text-green-800 border-green-200',
     game: 'bg-blue-100 text-blue-800 border-blue-200',
+    fun: 'bg-pink-100 text-pink-800 border-pink-200',
     AI: 'bg-indigo-100 text-indigo-800 border-indigo-200',
     API: 'bg-cyan-100 text-cyan-800 border-cyan-200',
     scrape: 'bg-yellow-100 text-yellow-800 border-yellow-200',
     data: 'bg-teal-100 text-teal-800 border-teal-200',
     info: 'bg-gray-100 text-gray-800 border-gray-200',
     tool: 'bg-orange-100 text-orange-800 border-orange-200',
+    utility: 'bg-slate-100 text-slate-800 border-slate-200',
+    social: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    media: 'bg-rose-100 text-rose-800 border-rose-200',
+    admin: 'bg-violet-100 text-violet-800 border-violet-200',
+    sticker: 'bg-fuchsia-100 text-fuchsia-800 border-fuchsia-200',
   };
 
   // Load plugins on component mount
@@ -172,6 +186,49 @@ const PluginsPage = () => {
     const pluginUrl = `${window.location.origin}/plugins?search=${encodeURIComponent(plugin.name)}`;
     navigator.clipboard.writeText(pluginUrl);
     toast.success('Plugin link copied to clipboard!');
+  };
+
+  // Admin functions for plugin approval
+  const handleCopyPluginJSON = async (plugin) => {
+    try {
+      const result = await copyPluginToClipboard(plugin);
+      if (result.success) {
+        toast.success('Plugin JSON copied to clipboard! Add it to permanentPlugins.js');
+        
+        // Mark as approved in backend if user is admin
+        if (isAdmin) {
+          try {
+            await adminApi.updatePluginStatus(plugin.id, 'approved');
+            refreshData(); // Refresh the data
+            toast.success('Plugin approved successfully!');
+          } catch (error) {
+            console.error('Error approving plugin:', error);
+            toast.error('Plugin copied but failed to mark as approved');
+          }
+        }
+      } else {
+        toast.error('Failed to copy plugin to clipboard');
+      }
+    } catch (error) {
+      console.error('Error copying plugin:', error);
+      toast.error('Failed to copy plugin to clipboard');
+    }
+  };
+
+  const handleRejectPlugin = async (plugin) => {
+    if (!isAdmin) {
+      toast.error('Admin privileges required');
+      return;
+    }
+
+    try {
+      await adminApi.updatePluginStatus(plugin.id, 'rejected');
+      refreshData(); // Refresh the data
+      toast.success('Plugin rejected successfully');
+    } catch (error) {
+      console.error('Error rejecting plugin:', error);
+      toast.error('Failed to reject plugin');
+    }
   };
 
   const getTypeColor = (type) => {
@@ -407,16 +464,43 @@ const PluginsPage = () => {
                       </Button>
                     </div>
 
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => !isPending && plugin.gistLink && window.open(plugin.gistLink, '_blank')}
-                      className={`text-xs ${isPending ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      disabled={isPending || !plugin.gistLink}
-                      title="View Code"
-                    >
-                      <ExternalLink className="w-3 h-3" />
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      {/* Admin buttons for pending plugins */}
+                      {isPending && isAdmin && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCopyPluginJSON(plugin)}
+                            className="text-xs bg-green-50 text-green-600 border-green-200 hover:bg-green-100"
+                            title="Copy JSON & Approve"
+                          >
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                            Copy & Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleRejectPlugin(plugin)}
+                            className="text-xs bg-red-50 text-red-600 border-red-200 hover:bg-red-100"
+                            title="Reject Plugin"
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </>
+                      )}
+
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => !isPending && plugin.gistLink && window.open(plugin.gistLink, '_blank')}
+                        className={`text-xs ${isPending ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        disabled={isPending || !plugin.gistLink}
+                        title="View Code"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

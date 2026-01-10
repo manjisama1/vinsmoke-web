@@ -8,6 +8,7 @@ import {
   sessionSecurity,
   secureErrorHandler
 } from '@/utils/security';
+import { isAdmin as checkIsAdmin } from '@/config/admin';
 import { API_ENDPOINTS } from '@/config/api';
 
 const AuthContext = createContext();
@@ -173,7 +174,8 @@ export const AuthProvider = ({ children }) => {
     startGitHubLogin,
     handleAuthCallback,
     loading,
-    isProcessingAuth
+    isProcessingAuth,
+    isAdmin: user ? checkIsAdmin(user) : false
   };
 
   return (

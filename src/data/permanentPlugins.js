@@ -26,12 +26,18 @@ export const PLUGIN_CATEGORIES = [
   { value: 'video', label: 'Video' },
   { value: 'download', label: 'Download' },
   { value: 'game', label: 'Game' },
+  { value: 'fun', label: 'Fun' },
   { value: 'AI', label: 'AI' },
   { value: 'API', label: 'API' },
   { value: 'scrape', label: 'Scrape' },
   { value: 'data', label: 'Data' },
   { value: 'info', label: 'Info' },
-  { value: 'tool', label: 'Tool' }
+  { value: 'tool', label: 'Tool' },
+  { value: 'utility', label: 'Utility' },
+  { value: 'social', label: 'Social' },
+  { value: 'media', label: 'Media' },
+  { value: 'admin', label: 'Admin' },
+  { value: 'sticker', label: 'Sticker' }
 ];
 
 // Search permanent plugins
