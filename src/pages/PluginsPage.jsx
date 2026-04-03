@@ -23,6 +23,7 @@ import { API_ENDPOINTS } from '@/config/api';
 import { adminApi } from '@/utils/adminApi';
 import { 
   PERMANENT_PLUGINS, 
+  fetchPermanentPlugins,
   getPermanentPluginTypes, 
   searchPermanentPlugins, 
   filterPermanentPluginsByType, 
@@ -158,16 +159,9 @@ const PluginsPage = () => {
     return filtered;
   }, [allPlugins, debouncedSearchTerm, typeFilter, sortFilter, statusFilter, activeTab]);
 
-  const combineAllPlugins = () => {
-    let combined = [];
-    
-    // Add permanent plugins (always first)
-    combined = [...PERMANENT_PLUGINS];
-    
-    // Add backend plugins
-    combined = [...combined, ...plugins];
-    
-    setAllPlugins(combined);
+  const combineAllPlugins = async () => {
+    const permanent = await fetchPermanentPlugins();
+    setAllPlugins([...permanent, ...plugins]);
   };
 
   const handleLikePlugin = (pluginId) => {
@@ -183,9 +177,9 @@ const PluginsPage = () => {
   };
 
   const copyPluginLink = (plugin) => {
-    const pluginUrl = `${window.location.origin}/plugins?search=${encodeURIComponent(plugin.name)}`;
-    navigator.clipboard.writeText(pluginUrl);
-    toast.success('Plugin link copied to clipboard!');
+    const linkToCopy = plugin.gistLink || `${window.location.origin}/plugins?search=${encodeURIComponent(plugin.name)}`;
+    navigator.clipboard.writeText(linkToCopy);
+    toast.success(plugin.gistLink ? 'Gist link copied!' : 'Plugin link copied!');
   };
 
   // Admin functions for plugin approval
