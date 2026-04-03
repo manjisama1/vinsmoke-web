@@ -23,7 +23,6 @@ import { API_ENDPOINTS } from '@/config/api';
 import { adminApi } from '@/utils/adminApi';
 import { 
   PERMANENT_PLUGINS, 
-  fetchPermanentPlugins,
   getPermanentPluginTypes, 
   searchPermanentPlugins, 
   filterPermanentPluginsByType, 
@@ -160,8 +159,7 @@ const PluginsPage = () => {
   }, [allPlugins, debouncedSearchTerm, typeFilter, sortFilter, statusFilter, activeTab]);
 
   const combineAllPlugins = async () => {
-    const permanent = await fetchPermanentPlugins();
-    setAllPlugins([...permanent, ...plugins]);
+    setAllPlugins([...PERMANENT_PLUGINS, ...plugins]);
   };
 
   const handleLikePlugin = (pluginId) => {
